@@ -1,17 +1,15 @@
 import os
 
-API_KEY = os.getenv("OPENAI_API_KEY") or 'YOUR_API_KEY'
-TARGET_IP = "192.168.1.139"
-SCAN_DESCRIPTION = "check for vulnerabilities on the target machine and attempt to exploit"
-
+TARGET_IP = '172.20.10.4'
+SCAN_DESCRIPTION = 'Check if there are any vulnerabilities for SMB protocol'
 SSH_CONFIG = {
-    'hostname': '192.168.1.113',
+    'hostname': '172.20.10.2',
     'username': 'root',
-    'password': 'kali'
+    'password': 'kali',
 }
 
-OPENAI_MODEL = "gpt-4o"
-
-LOG_DIR = "context_logs"
-FINDINGS_FILE = "findings.json"
-REPORT_FILE = "findings_report.md"
+OPENAI_MODEL = 'gpt-4o-mini-2024-07-18'
+LOG_DIR = 'context_logs'
+FINDINGS_FILE = 'findings.json'
+REPORT_FILE = 'findings_report.md'
+API_KEY = os.getenv('OPENAI_API_KEY') or ''
