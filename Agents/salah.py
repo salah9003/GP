@@ -30,42 +30,30 @@ class Salah(Agent):
             return ' '.join(parts)
         return command
 
-    def execute_command_with_timeout(self, ssh: paramiko.SSHClient, prepared_command: str, timeout: int = 60) -> Tuple[str, int, bool]:
+    def execute_command(self, ssh: paramiko.SSHClient, prepared_command: str) -> Tuple[str, int]:
         command_output = ""
         exit_status = None
-        timed_out = False
 
-        def run_command():
-            nonlocal command_output, exit_status
-            stdin, stdout, stderr = ssh.exec_command(prepared_command, get_pty=True)
+        stdin, stdout, stderr = ssh.exec_command(prepared_command, get_pty=True)
+        
+        while not (stdout.channel.exit_status_ready() and stdout.channel.recv_ready() == False):
+            if stdout.channel.recv_ready():
+                chunk = stdout.channel.recv(1024).decode('utf-8', errors='replace')
+                if chunk:
+                    command_output += chunk
+                    print(f"{self.name}: {chunk}", end='')
+                    
+            if stderr.channel.recv_stderr_ready():
+                error_chunk = stderr.channel.recv_stderr(1024).decode('utf-8', errors='replace')
+                if error_chunk:
+                    command_output += error_chunk
+                    print(f"{self.name} Error: {error_chunk}", end='')
             
-            while not (stdout.channel.exit_status_ready() and stdout.channel.recv_ready() == False):
-                if stdout.channel.recv_ready():
-                    chunk = stdout.channel.recv(1024).decode('utf-8', errors='replace')
-                    if chunk:
-                        command_output += chunk
-                        print(f"{self.name}: {chunk}", end='')
-                        
-                if stderr.channel.recv_stderr_ready():
-                    error_chunk = stderr.channel.recv_stderr(1024).decode('utf-8', errors='replace')
-                    if error_chunk:
-                        command_output += error_chunk
-                        print(f"{self.name} Error: {error_chunk}", end='')
-                
-                time.sleep(0.01)
-            
-            exit_status = stdout.channel.recv_exit_status()
+            time.sleep(0.01)
+        
+        exit_status = stdout.channel.recv_exit_status()
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(run_command)
-            try:
-                future.result(timeout=timeout)
-            except TimeoutError:
-                timed_out = True
-                command_output += f"\n{self.name}: Command timed out after {timeout} seconds."
-                print(f"{self.name}: Command timed out after {timeout} seconds.")
-
-        return command_output, exit_status or -1, timed_out
+        return command_output, exit_status or -1
 
     def execute_commands(self, commands: List[str], target_ip: str, scan_description: str, kofahi: Agent, ammar: Agent, rakan: Agent) -> str:
         output = ""
@@ -86,13 +74,12 @@ class Salah(Agent):
                     prepared_command = self.prepare_command(command)
                     logger.info(f"{self.name}: Executing command: {prepared_command}")
                     
-                    command_output, exit_status, timed_out = self.execute_command_with_timeout(ssh, prepared_command)
+                    command_output, exit_status = self.execute_command(ssh, prepared_command)
                     
                     log_entry = {
                         "command": prepared_command,
                         "raw_output": command_output,
-                        "exit_status": exit_status,
-                        "timed_out": timed_out
+                        "exit_status": exit_status
                     }
                     self.print_agent_output(text=json.dumps(log_entry))
                     
@@ -111,14 +98,13 @@ class Salah(Agent):
                             prepared_input_command = self.prepare_command(input_command)
                             logger.info(f"{self.name}: Executing input command: {prepared_input_command}")
                             
-                            input_output, input_exit_status, input_timed_out = self.execute_command_with_timeout(ssh, prepared_input_command)
+                            input_output, input_exit_status = self.execute_command(ssh, prepared_input_command)
                             
                             input_log_entry = {
                                 "command": prepared_input_command,
                                 "raw_output": input_output,
                                 "type": "input_command",
-                                "exit_status": input_exit_status,
-                                "timed_out": input_timed_out
+                                "exit_status": input_exit_status
                             }
                             self.print_agent_output(text=json.dumps(input_log_entry))
                             
@@ -154,14 +140,13 @@ class Salah(Agent):
                             try:
                                 prepared_fix_command = self.prepare_command(fix_command)
                                 
-                                fix_output, fix_exit_status, fix_timed_out = self.execute_command_with_timeout(ssh, prepared_fix_command)
+                                fix_output, fix_exit_status = self.execute_command(ssh, prepared_fix_command)
                                 
                                 fix_log_entry = {
                                     "command": prepared_fix_command,
                                     "raw_output": fix_output,
                                     "type": "fix_command",
-                                    "exit_status": fix_exit_status,
-                                    "timed_out": fix_timed_out
+                                    "exit_status": fix_exit_status
                                 }
                                 self.print_agent_output(text=json.dumps(fix_log_entry))
                                 
